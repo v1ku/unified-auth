@@ -24,6 +24,22 @@ let transporter = nodemailer.createTransport({
     }
 });
 
+const authenticate = (req, res, next) => {
+    const token = req.cookies['token'];
+    if (!token) {
+        return res.status(401).send('Unauthorized: No token provided.');
+    }
+    
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) {
+            return res.status(401).send('Unauthorized: Invalid token.');
+        }
+        
+        req.user = decoded.user;
+        next();
+    });
+};
+
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -138,6 +154,18 @@ app.post('/verify/email', (req, res) => {
         res.status(401).send('Incorrect OTP.');
     }
 });
+
+app.get('/logout', (req, res) => {
+    // clear the token cookie
+    res.clearCookie('token');
+    res.send('Logged out.');
+});
+
+app.get('/me', authenticate, (req, res) => {
+    // return the user's information
+    res.send(req.user);
+});
+
 
 
 
