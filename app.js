@@ -1,5 +1,10 @@
 const express = require('express');
+const nodemailer = require('nodemailer');
+const speakeasy = require('speakeasy');
+
 const app = express();
+
+
 require('dotenv').config();
 
 const passport = require('passport');
@@ -11,6 +16,13 @@ const jwt = require('jsonwebtoken');
 app.use(passport.initialize());
 app.use(cookieParser());
 
+let transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USERNAME,
+        pass: process.env.EMAIL_PASSWORD
+    }
+});
 
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
@@ -18,8 +30,7 @@ passport.use(new GoogleStrategy({
     callbackURL: "http://localhost:3000/auth/google/callback"
 },
 function(accessToken, refreshToken, profile, cb) {
-    // You will eventually check if the user is registered in your database
-    // For now, let's just return the profile information received from Google
+
     return cb(null, profile);
 }));
 
@@ -44,6 +55,90 @@ app.get('/auth/google/callback',
         res.redirect('/');
     }
 );
+const speakeasy = require('speakeasy');
+
+app.post('/login/email', (req, res) => {
+    // get the email from the request body
+    const email = req.body.email;
+    
+    // generate a secret and an OTP
+    const secret = speakeasy.generateSecret();
+    const otp = speakeasy.totp({
+        secret: secret.base32,
+        encoding: 'base32'
+    });
+    
+    // send an email with the OTP
+    transporter.sendMail({
+        from: process.env.EMAIL_USERNAME,
+        to: email,
+        subject: 'Your OTP for login',
+        text: `Your OTP for login is ${otp}.`
+    }, (err, info) => {
+        if (err) {
+            console.log(err);
+            res.status(500).send('Error sending email.');
+        } else {
+            console.log(info);
+            res.send('OTP sent to email.');
+        }
+    });
+});
+
+
+
+app.post('/login/email', (req, res) => {
+    // get the email from the request body
+    const email = req.body.email;
+    
+    // generate a secret and an OTP
+    const secret = speakeasy.generateSecret();
+    const otp = speakeasy.totp({
+        secret: secret.base32,
+        encoding: 'base32'
+    });
+    
+    // send an email with the OTP
+    transporter.sendMail({
+        from: process.env.EMAIL_USERNAME,
+        to: email,
+        subject: 'Your OTP for login',
+        text: `Your OTP for login is ${otp}.`
+    }, (err, info) => {
+        if (err) {
+            console.log(err);
+            res.status(500).send('Error sending email.');
+        } else {
+            console.log(info);
+            res.send('OTP sent to email.');
+        }
+    });
+});
+
+app.post('/verify/email', (req, res) => {
+    // get the email and OTP from the request body
+    const email = req.body.email;
+    const otp = req.body.otp;
+    
+    // verify the OTP
+    const verified = speakeasy.totp.verify({
+        secret: secret.base32,
+        encoding: 'base32',
+        token: otp
+    });
+    
+    if (verified) {
+        // OTP is correct
+        // create a JWT and send it in a cookie
+        const token = jwt.sign({ user: email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        res.cookie('token', token, { httpOnly: true });
+        res.send('Logged in.');
+    } else {
+        // OTP is incorrect
+        res.status(401).send('Incorrect OTP.');
+    }
+});
+
 
 
 app.listen(port, () => {
